@@ -9,6 +9,7 @@ uDNS runs on localhost and serves whatever port is specified in the command line
 JSON format
 ------
 ### The canonical format is as follows:
+'''
 {
   "mappings": [
     {"fqdn1": ["ip1", "ip2", "etc"]},
@@ -17,6 +18,7 @@ JSON format
     {...}
   ]
 }
+'''
 
 An example can be found in `sample_zonefile.json`
 
