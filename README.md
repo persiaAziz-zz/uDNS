@@ -25,7 +25,9 @@ An example can be found in `sample_zonefile.json`
 
 Running
 ------
-`python3 uDNS.py port zone_file`
+`python3 uDNS.py port zone_file [--rr]`
+
+For a detailed description of flags, see `python3 uDNS.py -h`
 
 
 Use with Apache Traffic Server

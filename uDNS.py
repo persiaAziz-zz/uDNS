@@ -26,6 +26,7 @@ import json
 from dnslib import *
 
 TTL = 60 * 5  # completely arbitrary TTL value
+round_robin = False
 records = dict()
 soa_records = dict()
 
@@ -118,6 +119,11 @@ def dns_response(data):
                 if qt in ['*', rqt]:  
                     reply.add_answer(RR(rname=qname, rtype=getattr(QTYPE, str(rqt)), rclass=1, ttl=TTL, rdata=rdata))
 
+            # rotate the A entries if round robin is on
+            if round_robin:
+                a_records = [x for x in rrs if type(x) == A]
+                records[domain] = a_records[1:] + a_records[:1]  # rotate list
+
             # add authoritative name servers to reply too
             # ns1 and ns1 are hardcoded in, change if necessary
             reply.add_auth(RR(rname=domain, rtype=QTYPE.NS, rclass=1, ttl=TTL, rdata=NS(domain.ns1)))
@@ -132,14 +138,16 @@ def dns_response(data):
     return reply.pack()
 
 
-
 if __name__ == '__main__':
     # handle cmd line args
     parser = argparse.ArgumentParser()
     parser.add_argument("port", type=int, help="port uDNS should listen on")
     parser.add_argument("zone_file", help="path to zone file")
+    parser.add_argument("--rr", action='store_true', help='round robin load balances if multiple IP addresses are present for 1 domain')
     args = parser.parse_args()
 
+    if args.rr:
+        round_robin = True
     build_fqdn_mappings(args.zone_file)
 
     servers = [
@@ -152,7 +160,7 @@ if __name__ == '__main__':
         thread = threading.Thread(target=s.serve_forever)  # that thread will start one more thread for each request
         thread.daemon = True  # exit the server thread when the main thread terminates
         thread.start()
-    
+
     try:
         while 1:
             time.sleep(1)
