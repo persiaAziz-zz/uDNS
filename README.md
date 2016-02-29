@@ -30,6 +30,6 @@ Running
 
 Use with Apache Traffic Server
 ------
-1. In `records.config`, add configuration lines: `CONFIG proxy.config.dns.nameservers STRING 127.0.0.1:PORT` and `ONFIG proxy.config.dns.round_robin_nameservers INT 0`, where `PORT` is whatever port you want uDNS to serve on.
+1. In `records.config`, add configuration lines: `CONFIG proxy.config.dns.nameservers STRING 127.0.0.1:PORT` and `CONFIG proxy.config.dns.round_robin_nameservers INT 0`, where `PORT` is whatever port you want uDNS to serve on.
 2. Run uDNS on `PORT`
 3. Now all domains mapped in the uDNS JSON config file should be mapped by ATS as well
