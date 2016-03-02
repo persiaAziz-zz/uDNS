@@ -27,6 +27,7 @@ from dnslib import *
 
 TTL = 60 * 5  # completely arbitrary TTL value
 round_robin = False
+default_records = list()
 records = dict()
 soa_records = dict()
 
@@ -77,17 +78,17 @@ class UDPRequestHandler(BaseRequestHandler):
     def send_data(self, data):
         return self.request[1].sendto(data, self.client_address)
 
-def build_fqdn_mappings(path):
+def build_domain_mappings(path):
     with open(path) as f:
         zone_file = json.load(f)
 
-    for fqdn in zone_file['mappings']:
-        for d in iter(fqdn.keys()):
+    for domain in zone_file['mappings']:
+        for d in iter(domain.keys()):
             # this loop only runs once, kind of a hack to access the only key in the dict
-            domain = DomainName(d)
+            domain_name = DomainName(d)
             soa_record = SOA(
-                mname=domain.ns1,     # primary name server
-                rname=domain.apache,  # email of the domain administrator
+                mname=domain_name.ns1,     # primary name server
+                rname=domain_name.apache,  # email of the domain administrator
                 times=(
                     201307231,    # serial number (totally random ;)
                     60 * 60 * 1,  # refresh
@@ -96,11 +97,22 @@ def build_fqdn_mappings(path):
                     60 * 60 * 1,  # minimum
                 )
             )
-            print("adding domain: " + domain)
-            records[domain] = [A(x) for x in fqdn[domain]] + [soa_record, NS(domain.ns1), NS(domain.ns2), MX(domain), CNAME(domain)]
-            soa_records[domain] = soa_record
+            print("adding domain: " + domain_name)
+            records[domain_name] = [A(x) for x in domain[domain_name]] + [soa_record, NS(domain_name.ns1), NS(domain_name.ns2), MX(domain_name), CNAME(domain_name)]
+            soa_records[domain_name] = soa_record
+
+    default_records.extend([A(d) for d in zone_file['otherwise']])
+
+def add_authoritative_records(reply, domain):
+    # ns1 and ns1 are hardcoded in, change if necessary
+    reply.add_auth(RR(rname=domain, rtype=QTYPE.NS, rclass=1, ttl=TTL, rdata=NS(domain.ns1)))
+    reply.add_auth(RR(rname=domain, rtype=QTYPE.NS, rclass=1, ttl=TTL, rdata=NS(domain.ns2)))
 
 def dns_response(data):
+    ''' dns_response takes in the raw bytes from the socket and does all the logic behind what 
+        RRs get returned as the response '''
+    global default_records, records, soa_records, TTL, round_robin
+
     request = DNSRecord.parse(data)
     print(request)
 
@@ -109,7 +121,9 @@ def dns_response(data):
     qn = str(qname)
     qtype = request.q.qtype
     qt = QTYPE[qtype]
+    found_specific = False
 
+    # first look for a specific mapping
     for domain, rrs in records.items():
         if domain == qn or qn.endswith('.' + domain):
         # we are the authoritative name server for this domain and all subdomains
@@ -117,6 +131,7 @@ def dns_response(data):
                 # only include requested record types (ie. A, MX, etc)
                 rqt = rdata.__class__.__name__
                 if qt in ['*', rqt]:  
+                    found_specific = True
                     reply.add_answer(RR(rname=qname, rtype=getattr(QTYPE, str(rqt)), rclass=1, ttl=TTL, rdata=rdata))
 
             # rotate the A entries if round robin is on
@@ -124,17 +139,20 @@ def dns_response(data):
                 a_records = [x for x in rrs if type(x) == A]
                 records[domain] = a_records[1:] + a_records[:1]  # rotate list
 
-            # add authoritative name servers to reply too
-            # ns1 and ns1 are hardcoded in, change if necessary
-            reply.add_auth(RR(rname=domain, rtype=QTYPE.NS, rclass=1, ttl=TTL, rdata=NS(domain.ns1)))
-            reply.add_auth(RR(rname=domain, rtype=QTYPE.NS, rclass=1, ttl=TTL, rdata=NS(domain.ns2)))
-
-            # add on the start of authority too, why not
+            add_authoritative_records(reply, domain)
             reply.add_auth(RR(rname=domain, rtype=QTYPE.SOA, rclass=1, ttl=TTL, rdata=soa_records[domain]))
             break
 
-    print("---- Reply: ----\n", reply)
+    # else if a specific mapping is not found, return default A-records
+    if not found_specific:
+        for a in default_records:
+            reply.add_answer(RR(rname=qname, rtype=QTYPE.A, rclass=1, ttl=TTL, rdata=a))
+        add_authoritative_records(reply, DomainName(qn))
 
+        if round_robin:
+            default_records = default_records[1:] + default_records[:1]
+
+    print("---- Reply: ----\n", reply)
     return reply.pack()
 
 
@@ -148,7 +166,7 @@ if __name__ == '__main__':
 
     if args.rr:
         round_robin = True
-    build_fqdn_mappings(args.zone_file)
+    build_domain_mappings(args.zone_file)
 
     servers = [
         socketserver.ThreadingUDPServer(('localhost', args.port), UDPRequestHandler),

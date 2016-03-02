@@ -5,6 +5,8 @@ uDNS is a small DNS server that takes in a pre-defined set of domain names and t
 
 uDNS runs on localhost and serves whatever port is specified in the command line arguments. uDNS serves both UDP and TCP connections.
 
+If uDNS does not find the requested domain in the explicitly mapped section of the JSON, uDNS will respond with the IPs given in the `otherwise` section of the JSON
+
 
 JSON format
 ------
@@ -14,8 +16,9 @@ JSON format
     {"domain1": ["ip1", "ip2", "etc"]},
     {"domain2": ["ip3", "ip4", "etc"]},
     {"domain3": ["ip5"]},
-    {...}
   ]
+
+  "otherwise": ["defaultip1", "defaultip2", "etc"]
 }
 ```
 
