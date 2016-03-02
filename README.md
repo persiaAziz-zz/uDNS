@@ -16,7 +16,7 @@ JSON format
     {"domain1": ["ip1", "ip2", "etc"]},
     {"domain2": ["ip3", "ip4", "etc"]},
     {"domain3": ["ip5"]},
-  ]
+  ],
 
   "otherwise": ["defaultip1", "defaultip2", "etc"]
 }
